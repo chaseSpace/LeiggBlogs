@@ -1,9 +1,9 @@
 ---
-title: Vercel+Hexo搭建免费静态站点
+title: 【杂项】Vercel+Hexo搭建免费静态站点
 date: 2023-03-05 16:02:51
 desc: 介绍了使用Vercel CLI搭配Hexo框架来免费搭建一个个人静态网站，另外需要购买域名解决Vercel域名在国内的污染问题。
 tags:
-- 技术杂项
+- 杂项
 category:
 - 技术
 ---
@@ -105,6 +105,20 @@ Auto-detected Project Settings (Hexo):
 
 然后在Vercel的项目的`Settings`->`Domains`中添加新域名。关于本节中不清楚的内容可以参考这篇 [知乎文章](https://zhuanlan.zhihu.com/p/595448121) 中的域名绑定部分。
 
+#### 2.7 修复markdown代码中大括号渲染异常问题
+博主使用的Hexo是v5.4，页面渲染时，将`{`和`}`分别渲染为`&#123;` 和 `&125;`，这可以通过降级Hexo来解决：
+```shell
+npm uninstall hexo  # 卸载
+npm install hexo@4.1.0  # 安装旧版
+
+hexo -v # 验证版本
+
+# 删除 hexo/yarn.lock，重新执行yarn install 以安装适应新版的各种yarn插件
+
+vercel --prod # 再次发布博客
+```
+
 #### 2.7 其他
 注意几点：
 - 上传文章后，同时将文件上传至Github仓库托管（以免本机故障导致数据丢失）。
+

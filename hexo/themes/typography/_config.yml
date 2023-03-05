@@ -1,5 +1,5 @@
-title_primary: "远处的风" # the bigger text
-title_secondary: "字与海" # the smaller text
+title_primary: "十月的东山岛" # the bigger text
+title_secondary: "观海" # the smaller text
 keywords:
 
 twitter: #username
@@ -8,13 +8,14 @@ weibo: #username/id
 instagram: #username
 github: chaseSpace
 
+# 尝试了 Livere, disqus 都搭建失败
 # Choose the comment service according to your need.
 # Please do not use the two services at the same time.
 livere: # [data-uid] on livere.com
 # Comments
-disqus: chasespace
-#disqus_shortname: chasespace # 开启此项也不行
-dove: # For fun ONLY. Set to true to 'disable' comments on your site.
+disqus:
+# disqus_shortname: chasespace # 开启此项也不行
+dove:
 
 # Set true to show the page indicator.
 showPageCount: true

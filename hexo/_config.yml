@@ -3,7 +3,7 @@
 ## Source: https://github.com/hexojs/hexo/
 
 # Site
-title: Hexo
+title: 十月的东山岛
 subtitle:
 description:
 keywords:
@@ -13,7 +13,7 @@ timezone:
 
 # URL
 ## If your site is put in a subdirectory, set url as 'http://yoursite.com/child' and root as '/child/'
-url: http://yoursite.com
+url: https://github.com/chaseSpace
 root: /
 permalink: :year/:month/:day/:title/
 permalink_defaults:
@@ -115,6 +115,12 @@ prism_plugin:
   mode: 'preprocess'
   theme: 'default'
   line_number: true
+
+#prismjs:
+#  enable: true
+#  preprocess: true
+#  line_number: true
+#  tab_replace: ''
 
 # 配色
 themeStyle: light
