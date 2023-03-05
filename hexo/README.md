@@ -2,7 +2,7 @@
 
 # Hexo Example
 
-This directory is a brief example of a [Hexo](https://hexo.io/) site that can be deployed to Vercel with zero configuration.
+使用Vercel创建的Hexo模板。
 
 ## Deploy Your Own
 
