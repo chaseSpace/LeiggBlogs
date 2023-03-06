@@ -1,0 +1,721 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="Leigg"><title>【Rust】一文讲透Rust中的PartialEq和Eq · 十月的东山岛</title><meta name="description" content="本文将围绕对象：PartialEq和Eq，以及PartialOrd和Ord，即四个Rust中重点的Compare Trait进行讨论并解释其中的细节，内容涵盖理论以及代码实现。"><meta name="og:description" content="本文将围绕对象：PartialEq和Eq，以及PartialOrd和Ord，即四个Rust中重点的Compare Trait进行讨论并解释其中的细节，内容涵盖理论以及代码实现。"><meta name="twitter:site" content="十月的东山岛"><meta name="twitter:title" content="【Rust】一文讲透Rust中的PartialEq和Eq"><meta name="twitter:card" content="summary"><meta name="keywords" content=""><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/bootstrap.min.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="stylesheet" href="/css/style.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"><meta name="generator" content="Hexo 4.2.1"><link rel="stylesheet" href="/css/prism.css" type="text/css">
+<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head><body><div class="container" id="stage"><div class="row"><div class="col-sm-3 col-xs-12 side-container invisible" id="side-bar"><div class="vertical-text site-title"><h3 class="site-title-small" tabindex="-1"><a class="a-title" href="/">观海</a></h3><h1 class="site-title-large" tabindex="-1"><a class="a-title" href="/">十月的东山岛</a></h1><!--h6(onclick="triggerSiteNav()") Trigger--></div><br class="visible-lg visible-md visible-sm"><div class="site-title-links" id="site-nav"><ul><li><a href="/">首页</a></li><li><a href="/archives">归档</a></li><li><a href="/categories">分类</a></li><li><a href="/tags">标签</a></li><li class="soc"><a href="https://github.com/chaseSpace" target="_blank" rel="noopener noreferrer" aria-label="Github"><i class="fa fa-github">&nbsp;</i></a><a href="https://github.com/chaseSpace/atom.xml" target="_blank" rel="noopener noreferrer" aria-label="RSS"><i class="fa fa-rss">&nbsp;</i></a></li></ul><div class="visible-lg visible-md visible-sm site-nav-footer"><br class="site-nav-footer-br"><footer><p>&copy;&nbsp;2023&nbsp;<a target="_blank" href="https://github.com/chaseSpace" rel="noopener noreferrer">Leigg</a></p><p>Theme&nbsp;<a target="_blank" href="https://github.com/SumiMakito/hexo-theme-typography" rel="noopener noreferrer">Typography</a>&nbsp;by&nbsp;<a target="_blank" href="https://www.keep.moe" rel="noopener noreferrer">Makito</a></p><p>Proudly published with&nbsp;<a target="_blank" href="https://hexo.io" rel="noopener noreferrer">Hexo</a></p></footer></div></div></div><div class="col-sm-9 col-xs-12 main-container invisible" id="main-container"><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post-container"><p class="post-title"><a>【Rust】一文讲透Rust中的PartialEq和Eq</a></p><p class="post-meta"><span class="date meta-item">发布于&nbsp;2023-03-03</span><span class="meta-item"><i class="fa fa-comment-o"></i><span>&nbsp;</span><a href="/2023/03/03/about-eq-ord-trait/#comments">评论</a></span><span class="meta-item"><i class="fa fa-folder"></i><span>&nbsp;</span><a class="a-tag" href="/categories/技术/" title="技术">技术</a><span>&nbsp;</span></span><span class="meta-item"><i class="fa fa-tag"></i><span>&nbsp;</span><a class="a-tag" href="/tags/Rust/" title="Rust">Rust</a><span>&nbsp;</span><a class="a-tag" href="/tags/技术笔记/" title="技术笔记">技术笔记</a><span>&nbsp;</span><a class="a-tag" href="/tags/已发表公号/" title="已发表公号">已发表公号</a><span>&nbsp;</span></span></p><p class="post-abstract"><!-- TOC -->
+<ul>
+<li><a href="#%E5%89%8D%E8%A8%80">前言</a></li>
+<li><a href="#1-%E6%95%B0%E5%AD%A6%E4%B8%AD%E7%9A%84%E7%9B%B8%E7%AD%89%E5%85%B3%E7%B3%BB">1. 数学中的相等关系</a><ul>
+<li><a href="#11-%E9%83%A8%E5%88%86%E7%9B%B8%E7%AD%89%E5%85%B3%E7%B3%BB">1.1 部分相等关系</a></li>
+<li><a href="#12-%E9%83%A8%E5%88%86%E7%9B%B8%E7%AD%89%E4%B8%8E%E5%85%A8%E7%9B%B8%E7%AD%89%E7%9A%84%E5%85%B3%E7%B3%BB">1.2 部分相等与全相等的关系</a></li>
+<li><a href="#13-%E5%B0%8F%E7%BB%93">1.3 小结</a></li>
+</ul>
+</li>
+<li><a href="#2-%E7%BC%96%E7%A8%8B%E4%B8%8E%E6%95%B0%E5%AD%A6%E7%9A%84%E5%85%B3%E7%B3%BB">2. 编程与数学的关系</a></li>
+<li><a href="#3-partialeq">3. PartialEq</a><ul>
+<li><a href="#31-trait%E5%AE%9A%E4%B9%89">3.1 trait定义</a></li>
+<li><a href="#32-%E5%AF%B9%E5%BA%94%E6%93%8D%E4%BD%9C%E7%AC%A6">3.2 对应操作符</a></li>
+<li><a href="#33-%E5%8F%AF%E6%B4%BE%E7%94%9F">3.3 可派生</a></li>
+<li><a href="#34-%E6%89%8B%E5%8A%A8%E5%AE%9E%E7%8E%B0PartialEq">3.4 手动实现PartialEq</a></li>
+<li><a href="#35-%E6%AF%94%E8%BE%83%E4%B8%8D%E5%90%8C%E7%9A%84%E7%B1%BB%E5%9E%8B">3.5 比较不同的类型</a></li>
+<li><a href="#36-Rust%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B%E5%A6%82%E4%BD%95%E5%AE%9E%E7%8E%B0PartialEq">3.6 Rust基本类型如何实现PartialEq</a></li>
+</ul>
+</li>
+<li><a href="#4-eq">4. Eq</a><ul>
+<li><a href="#41-trait%E5%AE%9A%E4%B9%89">4.1 trait定义</a></li>
+<li><a href="#42-%E5%AF%B9%E5%BA%94%E6%93%8D%E4%BD%9C%E7%AC%A6">4.2 对应操作符</a></li>
+<li><a href="#43-%E5%8F%AF%E6%B4%BE%E7%94%9F">4.3 可派生</a></li>
+<li><a href="#44-%E6%89%8B%E5%8A%A8%E5%AE%9E%E7%8E%B0Eq">4.4 手动实现Eq</a></li>
+<li><a href="#45-%E6%AF%94%E8%BE%83%E4%B8%8D%E5%90%8C%E7%9A%84%E7%B1%BB%E5%9E%8B">4.5 比较不同的类型</a></li>
+<li><a href="#46-Rust%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B%E5%A6%82%E4%BD%95%E5%AE%9E%E7%8E%B0Eq">4.6 Rust基本类型如何实现Eq</a></li>
+</ul>
+</li>
+<li><a href="#5-%E5%AF%B9%E6%B5%AE%E7%82%B9%E6%95%B0%E7%9A%84%E6%B5%8B%E8%AF%95">5. 对浮点数的测试</a></li>
+<li><a href="#6-PartialOrd%E5%92%8COrd">6. PartialOrd和Ord</a><ul>
+<li><a href="#61-%E4%B8%8EPartialEq%E5%92%8CEq%E7%9A%84%E5%85%B3%E7%B3%BB">6.1 与PartialEq和Eq的关系</a></li>
+<li><a href="#62-%E5%9F%BA%E6%9C%AC%E6%80%A7%E8%B4%A8">6.2 基本性质</a></li>
+<li><a href="#63-trait%E5%AE%9A%E4%B9%89">6.3 trait定义</a></li>
+<li><a href="#64-%E5%8F%AF%E6%B4%BE%E7%94%9F">6.4 可派生</a></li>
+<li><a href="#65-%E6%89%8B%E5%8A%A8%E5%AE%9E%E7%8E%B0PartialOrd%E5%92%8COrd">6.5 手动实现PartialOrd和Ord</a></li>
+<li><a href="#66-%E6%AF%94%E8%BE%83%E4%B8%8D%E5%90%8C%E7%9A%84%E7%B1%BB%E5%9E%8B">6.6 比较不同的类型</a></li>
+<li><a href="#67-Rust%E5%9F%BA%E6%9C%AC%E7%B1%BB%E5%9E%8B%E5%A6%82%E4%BD%95%E5%AE%9E%E7%8E%B0PartialOrd%E5%92%8COrd">6.7 Rust基本类型如何实现PartialOrd和Ord</a></li>
+<li><a href="#68-%E4%B8%BA%E5%85%B6%E4%BB%96%E7%B1%BB%E5%9E%8B%E5%AE%9E%E7%8E%B0%E5%9B%9B%E5%A4%A7compare-trait">6.8 为其他类型实现四大compare-trait</a><!-- TOC -->
+
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>本文将围绕对象：PartialEq和Eq，以及PartialOrd和Ord，即四个Rust中重点的<strong>Compare Trait</strong>进行讨论并解释其中的细节，内容涵盖理论以及代码实现。</p>
+<p>在正式介绍PartialEq和Eq、以及PartialOrd和Ord之前，本文会首先介绍它们所遵循的数学理论，也就是<strong>相等关系</strong>。<br>文章主要分三大部分，第一部分是第1节，讨论的是数学中的相等关系；第二部分是第2~5节，主要讨论PartialEq和Eq；第三部分是第6节，主要讨论PartialOrd和Ord。内容描述可能具有先后顺序，建议按章节顺序阅读。</p>
+<h3 id="声明"><a href="#声明" class="headerlink" title="声明"></a>声明</h3><p>本文内容来自作者个人的学习成果总结及整理，可能会存在因个人水平导致的表述错误，欢迎并感谢读者指正！</p>
+<ul>
+<li><p>作者：<a href="https://github.com/chaseSpace"><strong>Leigg</strong></a></p>
+</li>
+<li><p>首发地址：<a href="https://github.com/chaseSpace/rust_practices/blob/main/blogs/about_eq_ord_trait.md">https://github.com/chaseSpace/rust_practices/blob/main/blogs/about_eq_ord_trait.md</a></p>
+</li>
+<li><p>CSDN：<a href="https://blog.csdn.net/sc_lilei/article/details/129322616" target="_blank" rel="noopener">https://blog.csdn.net/sc_lilei/article/details/129322616</a></p>
+</li>
+<li><p>发布时间：2023年03月03日</p>
+</li>
+<li><p>License：CC-BY-NC-SA 4.0 （转载请注明作者及来源）</p>
+</li>
+<li><p>已发表的公众号</p>
+<ul>
+<li><a href="https://mp.weixin.qq.com/s/hdW2QjAExPs1cE9rV1tn4Q" target="_blank" rel="noopener">Rust语言中文社区</a></li>
+</ul>
+<br>
+
+</li>
+</ul>
+<h2 id="1-数学中的相等关系"><a href="#1-数学中的相等关系" class="headerlink" title="1. 数学中的相等关系"></a>1. 数学中的相等关系</h2><p>在初中数学中，会介绍到什么是相等关系（也叫等价关系），相等关系是一种基本的二元关系，它描述了两个对象之间的相等性质。它必须满足如下三个性质：</p>
+<ul>
+<li>自反性（反身性）：自己一定等于自己，即<code>a=a</code>；</li>
+<li>对称性：若有<code>a=b</code>，则有<code>b=a</code>；</li>
+<li>传递性：若有<code>a=b</code>和<code>b=c</code>，则有<code>a=c</code>；</li>
+</ul>
+<p>也就是说，满足这三个性质才叫满足（完全）相等关系。这很容易理解，就不过多解释。</p>
+<h3 id="1-1-部分相等关系"><a href="#1-1-部分相等关系" class="headerlink" title="1.1 部分相等关系"></a>1.1 部分相等关系</h3><p>对于简单的整数类型、字符串类型，我们可以说它们具有完全相等关系，因为它们可以全方位比较（包含两个维度，第一个是类型空间中的任意值，第二个是每个值的任意成员属性）， 但是对于某些类型就不行了，<strong>这些类型总是不满足其中一个维度</strong><br>。下面一起来看看：</p>
+<blockquote>
+<p>以字符串为例，全方位比较的是它的每个字节值以及整个字符串的长度。</p>
+</blockquote>
+<h4 id="0-浮点数类型"><a href="#0-浮点数类型" class="headerlink" title="0. 浮点数类型"></a>0. 浮点数类型</h4><p>在浮点数类型中有个特殊的值是NaN（Not-a-number），这个值与任何值都不等（包括自己），它直接违背了自反性。这个时候，我们就需要为浮点数定义一种部分相等关系，这主要是为了比较非NaN浮点数。</p>
+<blockquote>
+<p>NaN定义于IEEE 754-2008标准的5.2节“特殊值”（Special Values）中，除了NaN，另外两个特殊值是正无穷大（+infinity）、负无穷大（-infinity），不过这两个值满足自反性。</p>
+</blockquote>
+<p>除了浮点数类型，数学中还有其他类型也不具有<strong>通常意义上</strong>的全等关系，比如集合类型、函数类型。</p>
+<h4 id="1-集合类型"><a href="#1-集合类型" class="headerlink" title="1. 集合类型"></a>1. 集合类型</h4><p>假设有集合A={1,2,3}、B={1,3,2}，那么此时A和B是相等还是不相等呢？这就需要在不同角度去看待，当我们只关注集合中是否包含相同的元素时， 可以说它们相等，当我们还要严格要求元素顺序一致时，它们就不相等。</p>
+<p>在实际应用中，由我们定义（Impl）了一种集合中的特殊相等关系，称为”集合的相等”，这个特殊关系（实现逻辑）中，我们只要求两个集合的元素相同，不要求其他。</p>
+<h4 id="2-函数类型"><a href="#2-函数类型" class="headerlink" title="2. 函数类型"></a>2. 函数类型</h4><p>首先从浮点数的NaN角度来看函数，假设有函数A=f(x)、B=f(y)，若x=y，那显然A的值也等于B，但是如果存在一个参数z是无意义的呢，意思是f(z)是无结果的或结果非法，那么此时可以说f(z)等于自身吗？<br>那显然是不行的。这个例子和浮点数的例子是一个意思。</p>
+<p>然后从集合类型的角度再来看一次函数，假设有函数A=f(x)、B=g(x)，注意是两个不同的函数，当二者给定一个相同输入x产生相同结果时，此时f(x)和g(x)是相等还是不等呢？<br>与集合类似，实际应用中，这里也是由我们定义（Impl）了一种函数中的特殊相等关系，称为函数的相等。这个特殊关系（实现逻辑）中，我们只要求两个函数执行结果的值相同，不要求函数执行过程相同。</p>
+<h3 id="1-2-部分相等与全相等的关系"><a href="#1-2-部分相等与全相等的关系" class="headerlink" title="1.2 部分相等与全相等的关系"></a>1.2 部分相等与全相等的关系</h3><p>部分相等是全相等关系的子集，也就是说，如果两个元素具有相等关系，那它们之间也一定有部分相等关系。这在编程语言中的实现也是同样遵循的规则。</p>
+<h3 id="1-3-小结"><a href="#1-3-小结" class="headerlink" title="1.3 小结"></a>1.3 小结</h3><p>数学中定义了（全）相等关系（等价关系）的三大性质，分别是自反性、对称性和传递性；但某些数据类型中的值或属性违背了三大性质，就不能叫做满足全相等关系， 此时只能为该类型实现<strong>部分相等</strong>关系。</p>
+<p><strong>在部分相等关系中，用于比较的值也是满足三大性质的</strong>，因为此时我们排除了那些特殊值。另外，部分相等是全相等关系的子集。</p>
+<br>
+
+<h2 id="2-编程与数学的关系"><a href="#2-编程与数学的关系" class="headerlink" title="2. 编程与数学的关系"></a>2. 编程与数学的关系</h2><p>数学是一门研究数据、空间和变化的庞大学科，它提供了一种严谨的描述和处理问题的方式，而编程则是将问题的解决方法转化为计算机程序的过程，可以说，数学是问题的理论形式， 编程则是问题的代码形式，编程解决问题的依据来自数学。</p>
+<p>所以说，编程语言的设计中也是大量运用了数学概念与模型的，本文关注的<strong>相等关系</strong>就是一个例子。</p>
+<p>在Rust库中的<code>PartialEq</code>的注释文档中提到了<a href="https://en.wikipedia.org/wiki/Partial_equivalence_relation" target="_blank" rel="noopener">partial equivalence relations</a> 即部分相等关系这一概念，并且同样使用了浮点数的特殊值NaN来举例说明。</p>
+<blockquote>
+<p><code>Eq</code>的注释文档则是提到了<a href="https://en.wikipedia.org/wiki/Equivalence_relation" target="_blank" rel="noopener">equivalence relations</a>，并且明确说明了，对于满足<code>Eq</code>trait的类型，是一定满足相等关系的三大性质的。</p>
+</blockquote>
+<br>
+
+<h2 id="3-PartialEq"><a href="#3-PartialEq" class="headerlink" title="3. PartialEq"></a>3. PartialEq</h2><h3 id="3-1-trait定义"><a href="#3-1-trait定义" class="headerlink" title="3.1 trait定义"></a>3.1 trait定义</h3><p>Rust中的PartialEq的命名明确地表达了它的含义，但如果我们忘记了数学中的相等关系，就肯定会对此感到疑惑。先来看看它的定义：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">pub</span> <span class="token keyword">trait</span> PartialEq<span class="token operator">&lt;</span>Rhs<span class="token punctuation">:</span> ?Sized <span class="token operator">=</span> Self<span class="token operator">></span> <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool<span class="token punctuation">;</span>
+    <span class="token keyword">fn</span> <span class="token function">ne</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token operator">!</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">eq</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>在这个定义中，可以得到三个基本信息：</p>
+<ol start="0">
+<li>这个trait包含2个方法，eq和ne，且ne具有默认实现，使用时开发者只需要实现eq方法即可（库文档也特别说明，若没有更好的理由，则不应该手动实现ne方法）；</li>
+<li>PartialEq绑定的Rhs参数类型是<code>?Size</code>，即包括动态大小类型（DST）和固定大小类型（ST）类型（Rhs是主类型用来比较的类型）；</li>
+<li>Rhs参数提供了默认类型即<code>Self</code>（和主类型一致），但也可以是<strong>其他类型</strong>，也就是说，实践中你甚至可以将<code>i32</code>与struct进行比较，只要实现了对应的<code>PartialEq</code>；</li>
+</ol>
+<blockquote>
+<p>Rust中的lhs和rhs指的是，”left-hand side”（左手边） 和 “right-hand side”（右手边）的参数。</p>
+</blockquote>
+<h3 id="3-2-对应操作符"><a href="#3-2-对应操作符" class="headerlink" title="3.2 对应操作符"></a>3.2 对应操作符</h3><p>这个比较简单，PartialEq和Eq一致，拥有的eq和ne方法分别对应<code>==</code>和<code>!=</code>两个操作符。Rust的大部分基本类型如整型、浮点数、字符串等都实现了PartialEq， 所以它们可以使用<code>==</code>和<code>!=</code>进行相等性比较。</p>
+<h3 id="3-3-可派生"><a href="#3-3-可派生" class="headerlink" title="3.3 可派生"></a>3.3 可派生</h3><p>英文描述为Derivable，即通过<code>derive</code>宏可以为自定义复合类型（struct/enum/union类型）自动实现PartialEq，用法如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token attribute attr-name">#[derive(PartialEq)]</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token attribute attr-name">#[derive(PartialEq)]</span>
+<span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span> Paperback<span class="token punctuation">,</span> Hardback<span class="token punctuation">,</span> Ebook <span class="token punctuation">}</span>
+
+<span class="token attribute attr-name">#[derive(PartialEq)]</span>
+union T <span class="token punctuation">{</span>
+    a<span class="token punctuation">:</span> u32<span class="token punctuation">,</span>
+    b<span class="token punctuation">:</span> f32<span class="token punctuation">,</span>
+    c<span class="token punctuation">:</span> f64<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，可派生的前提是这个复合类型下的所有成员字段都是支持PartialEq的，下面的代码说明了这种情况：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token comment" spellcheck="true">// #[derive(PartialEq)]  // 取消注释即可编译通过</span>
+<span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span> Paperback<span class="token punctuation">,</span> Hardback<span class="token punctuation">,</span> Ebook <span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// 无法编译！！！</span>
+<span class="token attribute attr-name">#[derive(PartialEq)]</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+    format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">,</span> <span class="token comment" spellcheck="true">// 未实现PartialEq</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>扩展：使用<code>cargo expand</code>命令可以打印出宏为类型实现的PartialEq代码。</p>
+</blockquote>
+<h3 id="3-4-手动实现PartialEq"><a href="#3-4-手动实现PartialEq" class="headerlink" title="3.4 手动实现PartialEq"></a>3.4 手动实现PartialEq</h3><p>以上一段代码为例，我们假设<code>BookFormat</code>是引用其他crate下的代码，无法为其添加derive语句（不能修改它），此时就需要手动为<code>Book</code>手动实现PartialEq，代码如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span> Paperback<span class="token punctuation">,</span> Hardback<span class="token punctuation">,</span> Ebook <span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+    format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// 要求只要name相等则Book相等（假设format无法进行相等比较）</span>
+<span class="token keyword">impl</span> PartialEq <span class="token keyword">for</span> Book <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name <span class="token operator">==</span> other<span class="token punctuation">.</span>name
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">let</span> bk <span class="token operator">=</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"x"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Ebook <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">let</span> bk2 <span class="token operator">=</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"x"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Paperback <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token function">assert!</span><span class="token punctuation">(</span>bk <span class="token operator">==</span> bk2<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment" spellcheck="true">// 因为Book实现了PartialEq，所以可以比较相等性</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="3-5-比较不同的类型"><a href="#3-5-比较不同的类型" class="headerlink" title="3.5 比较不同的类型"></a>3.5 比较不同的类型</h3><p>根据上面的trait定义中，我们知道了只要在实现PartialEq时关联不同类型的Rhs参数，就能比较不同类型的相等性。示例代码如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token attribute attr-name">#[derive(PartialEq)]</span>
+<span class="token keyword">enum</span> WheelBrand <span class="token punctuation">{</span>
+    Bmw<span class="token punctuation">,</span>
+    Benz<span class="token punctuation">,</span>
+    Michelin<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> Car <span class="token punctuation">{</span>
+    brand<span class="token punctuation">:</span> WheelBrand<span class="token punctuation">,</span>
+    price<span class="token punctuation">:</span> i32<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">impl</span> PartialEq<span class="token operator">&lt;</span>WheelBrand<span class="token operator">></span> <span class="token keyword">for</span> Car <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>WheelBrand<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>brand <span class="token operator">==</span> <span class="token operator">*</span>other
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">let</span> car <span class="token operator">=</span> Car <span class="token punctuation">{</span> brand<span class="token punctuation">:</span> WheelBrand<span class="token punctuation">:</span><span class="token punctuation">:</span>Benz<span class="token punctuation">,</span> price<span class="token punctuation">:</span> <span class="token number">10000</span> <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">let</span> wheel <span class="token operator">=</span> WheelBrand<span class="token punctuation">:</span><span class="token punctuation">:</span>Benz<span class="token punctuation">;</span>
+    <span class="token comment" spellcheck="true">// 比较 struct和enum</span>
+    <span class="token function">assert!</span><span class="token punctuation">(</span>car <span class="token operator">==</span> wheel<span class="token punctuation">)</span><span class="token punctuation">;</span>
+    <span class="token comment" spellcheck="true">// assert!(wheel == car);  // 无法反过来比较</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，代码片段中仅实现了Car与Wheel的相等性比较，若要反过来比较，还得提供反向的实现，如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">impl</span> PartialEq<span class="token operator">&lt;</span>Car<span class="token operator">></span> <span class="token keyword">for</span> WheelBrand <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Car<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token operator">*</span><span class="token keyword">self</span> <span class="token operator">==</span> other<span class="token punctuation">.</span>brand
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="3-6-Rust基本类型如何实现PartialEq"><a href="#3-6-Rust基本类型如何实现PartialEq" class="headerlink" title="3.6 Rust基本类型如何实现PartialEq"></a>3.6 Rust基本类型如何实现PartialEq</h3><p>上文说过，Rust的基本类型都实现了PartialEq，那具体是怎么实现的呢？是为每个类型都写一套impl代码吗？代码在哪呢？</p>
+<p>如果你使用IDE，可以通过在任意位置按住ctrl键（视IDE而定）点击代码中的<code>PartialEq</code>以打开其在标准库中的代码文件<code>cmp.rs</code>，相对路径是<code>RUST_LIB_DIR/core/src/cmp.rs</code> 。<br>在该文件中可以找到如下宏代码：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">mod</span> impls <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// ...</span>
+    <span class="token macro-rules function">macro_rules!</span> partial_eq_impl <span class="token punctuation">{</span>
+        <span class="token punctuation">(</span>$<span class="token punctuation">(</span>$t<span class="token punctuation">:</span>ty<span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token punctuation">(</span>$<span class="token punctuation">(</span>
+            #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            <span class="token keyword">impl</span> <span class="token keyword">const</span> PartialEq <span class="token keyword">for</span> $t <span class="token punctuation">{</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">==</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">ne</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">!=</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token macro-rules function">partial_eq_impl!</span> <span class="token punctuation">{</span>
+        bool char usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64
+        <span class="token punctuation">}</span>
+    <span class="token comment" spellcheck="true">// ...</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里使用了Rust强大的宏特性（此处使用的是声明宏，还算简单），来为Rust的众多基本类型<strong>快速</strong>实现了PartialEq trait。如果你还不了解宏，可以暂且理解其是一种编写重复模式代码规则的编程特性，它可以减少大量重复代码。</p>
+<br>
+
+<h2 id="4-Eq"><a href="#4-Eq" class="headerlink" title="4. Eq"></a>4. Eq</h2><p>理解了PartialEq，那Eq理解起来就非常简单了，本节的内容主体与PartialEq基本一致，所以相对简明。</p>
+<h3 id="4-1-trait定义"><a href="#4-1-trait定义" class="headerlink" title="4.1 trait定义"></a>4.1 trait定义</h3><p>如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">pub</span> <span class="token keyword">trait</span> Eq<span class="token punctuation">:</span> PartialEq<span class="token operator">&lt;</span>Self<span class="token operator">></span> <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">assert_receiver_is_total_eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<p>根据代码可以得到两个重要信息：</p>
+<ol start="0">
+<li>Eq是继承自PartialEq的；</li>
+<li>Eq相对PartialEq只多了一个方法<code>assert_receiver_is_total_eq()</code>，并且有默认实现；</li>
+</ol>
+<p>第一个，既然Eq继承自PartialEq，说明想要实现Eq，必先实现PartialEq。第二个是这个<code>assert_receiver_is_total_eq()</code><br>方法了，简单来说，它是被derive语法内部使用的，用来断言类型的每个属性都实现了Eq特性，对于使用者的我们来说， 其实不用过多关注。</p>
+<h3 id="4-2-对应操作符"><a href="#4-2-对应操作符" class="headerlink" title="4.2 对应操作符"></a>4.2 对应操作符</h3><p>与PartialEq无差别，略。</p>
+<h3 id="4-3-可派生"><a href="#4-3-可派生" class="headerlink" title="4.3 可派生"></a>4.3 可派生</h3><p>与PartialEq的使用相似，只是要注意派生时，由于继承关系，Eq和PartialEq必须同时存在。</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token attribute attr-name">#[derive(PartialEq, Eq)]</span> <span class="token comment" spellcheck="true">// 顺序无关</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre>
+<h3 id="4-4-手动实现Eq"><a href="#4-4-手动实现Eq" class="headerlink" title="4.4 手动实现Eq"></a>4.4 手动实现Eq</h3><p>直接看代码：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span> Paperback<span class="token punctuation">,</span> Hardback<span class="token punctuation">,</span> Ebook <span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+    format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// 要求只要name相等则Book相等（假设format无法进行相等比较）</span>
+<span class="token keyword">impl</span> PartialEq <span class="token keyword">for</span> Book <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name <span class="token operator">==</span> other<span class="token punctuation">.</span>name
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">impl</span> Eq <span class="token keyword">for</span> Book <span class="token punctuation">{</span><span class="token punctuation">}</span>
+
+<span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">let</span> bk <span class="token operator">=</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"x"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Ebook <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token keyword">let</span> bk2 <span class="token operator">=</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"x"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">,</span> format<span class="token punctuation">:</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Paperback <span class="token punctuation">}</span><span class="token punctuation">;</span>
+    <span class="token function">assert!</span><span class="token punctuation">(</span>bk <span class="token operator">==</span> bk2<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>需要注意的是，必须先实现PartialEq，再实现Eq。另外，这里能看出的是，在比较相等性方面，Eq和PartialEq都是使用<code>==</code>和<code>!=</code>操作符，无差别感知。</p>
+<h3 id="4-5-比较不同的类型"><a href="#4-5-比较不同的类型" class="headerlink" title="4.5 比较不同的类型"></a>4.5 比较不同的类型</h3><p>与PartialEq无差别，略。</p>
+<h3 id="4-6-Rust基本类型如何实现Eq"><a href="#4-6-Rust基本类型如何实现Eq" class="headerlink" title="4.6 Rust基本类型如何实现Eq"></a>4.6 Rust基本类型如何实现Eq</h3><p>与PartialEq一样，在相对路径为<code>RUST_LIB_DIR/core/src/cmp.rs</code>的文件中，存在如下宏代码：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">mod</span> impls <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">/*
+        ... (先实现PartialEq)
+        
+    */</span>
+
+    <span class="token comment" spellcheck="true">// 再实现Eq</span>
+    <span class="token macro-rules function">macro_rules!</span> eq_impl <span class="token punctuation">{</span>
+        <span class="token punctuation">(</span>$<span class="token punctuation">(</span>$t<span class="token punctuation">:</span>ty<span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token punctuation">(</span>$<span class="token punctuation">(</span>
+            #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            <span class="token keyword">impl</span> Eq <span class="token keyword">for</span> $t <span class="token punctuation">{</span><span class="token punctuation">}</span>
+        <span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token macro-rules function">eq_impl!</span> <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> bool char usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<br>
+
+<h2 id="5-对浮点数的测试"><a href="#5-对浮点数的测试" class="headerlink" title="5. 对浮点数的测试"></a>5. 对浮点数的测试</h2><p>目前在标准库中，笔者只发现有浮点数是只实现了PartialEq的（以及包含浮点数的复合类型），下面是浮点数的测试代码：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">fn</span> <span class="token function">main</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> check_eq_impl<span class="token operator">&lt;</span>I<span class="token punctuation">:</span> Eq<span class="token operator">></span><span class="token punctuation">(</span>typ<span class="token punctuation">:</span> I<span class="token punctuation">)</span> <span class="token punctuation">{</span><span class="token punctuation">}</span>
+    <span class="token comment" spellcheck="true">// check_eq_impl(0.1f32); // 编译错误</span>
+    <span class="token comment" spellcheck="true">// check_eq_impl(0.1f64); // 编译错误</span>
+
+    <span class="token keyword">let</span> nan <span class="token operator">=</span> f32<span class="token punctuation">:</span><span class="token punctuation">:</span>NAN<span class="token punctuation">;</span>
+    <span class="token keyword">let</span> infinity <span class="token operator">=</span> f32<span class="token punctuation">:</span><span class="token punctuation">:</span>INFINITY<span class="token punctuation">;</span>
+    <span class="token keyword">let</span> neg_infinity <span class="token operator">=</span> f32<span class="token punctuation">:</span><span class="token punctuation">:</span>NEG_INFINITY<span class="token punctuation">;</span>
+    <span class="token function">assert_ne!</span><span class="token punctuation">(</span>nan<span class="token punctuation">,</span> nan<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment" spellcheck="true">// 不等！</span>
+    <span class="token function">assert_eq!</span><span class="token punctuation">(</span>infinity<span class="token punctuation">,</span> infinity<span class="token punctuation">)</span><span class="token punctuation">;</span> <span class="token comment" spellcheck="true">// 相等！</span>
+    <span class="token function">assert_eq!</span><span class="token punctuation">(</span>neg_infinity<span class="token punctuation">,</span> neg_infinity<span class="token punctuation">)</span><span class="token punctuation">;</span>  <span class="token comment" spellcheck="true">// 相等！</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<br>
+
+<h2 id="6-PartialOrd和Ord"><a href="#6-PartialOrd和Ord" class="headerlink" title="6. PartialOrd和Ord"></a>6. PartialOrd和Ord</h2><h3 id="6-1-与PartialEq和Eq的关系"><a href="#6-1-与PartialEq和Eq的关系" class="headerlink" title="6.1 与PartialEq和Eq的关系"></a>6.1 与PartialEq和Eq的关系</h3><p>很多时候，当我们谈到PartialEq和Eq时，PartialOrd和Ord总是不能脱离的话题，因为它们都是一种二元比较关系，前两者是相等性比较，后两者是有序性（也可称大小性）比较。 前两者使用的操作符是<code>==</code>和<code>!=</code><br>，后两者使用的操作符是<code>&gt;</code>、<code>=</code><br>、<code>&lt;</code>，没错，PartialOrd和Ord的比较结果是<strong>包含等于</strong>的，然后我们可以基于这个有序关系来对数据进行排序（sort）。</p>
+<blockquote>
+<p>重点：有序性包含相等性。</p>
+</blockquote>
+<p>与PartialEq存在的原因一样，PartialOrd的存在的理由也是因为有一些类型是不具有<strong>有序性</strong>关系的（无法比较），比如浮点数、Bool、Option<T>、函数、闭包等类型。</p>
+<p><strong>PartialEq和Eq、PartialOrd和Ord共同描述了Rust中任意类型的二元比较关系，包含相等性、有序性。</strong> 所以在上文中，你可能也观察到PartialOrd和Ord的定义也位于<code>cmp.rs</code>文件中。</p>
+<blockquote>
+<p>我们可以将PartialOrd和Ord直译为偏序和全序关系，因为这确实是它们要表达的含义。偏序和全序的概念来自离散数学，下文详解。</p>
+</blockquote>
+<h3 id="6-2-基本性质"><a href="#6-2-基本性质" class="headerlink" title="6.2 基本性质"></a>6.2 基本性质</h3><p>PartialOrd和Ord也是满足一定的基本性质的，PartialOrd满足：</p>
+<ul>
+<li>传递性：若有<code>a&lt;b</code>、<code>b&lt;c</code>，则<code>a&lt;c</code>。且<code>&gt;</code>和<code>==</code>也是一样的；</li>
+<li>对立性：若有<code>a&lt;b</code>，则<code>b&gt;a</code>；</li>
+</ul>
+<p>Ord基于PartialOrd，自然遵循传递性和对立性，另外对于任意两个元素，还满足如下性质：</p>
+<ul>
+<li>确定性：必定存在<code>&gt;</code>或<code>==</code>或<code>&lt;</code>其中的一个关系；</li>
+</ul>
+<h3 id="6-3-trait定义"><a href="#6-3-trait定义" class="headerlink" title="6.3 trait定义"></a>6.3 trait定义</h3><h4 id="1-PartialOrd-trait"><a href="#1-PartialOrd-trait" class="headerlink" title="1. PartialOrd trait"></a>1. PartialOrd trait</h4><pre class="line-numbers language-rust"><code class="language-rust"><span class="token comment" spellcheck="true">// 二元关系定义（&lt;,==,>）</span>
+<span class="token keyword">pub</span> <span class="token keyword">enum</span> Ordering <span class="token punctuation">{</span>
+    Less <span class="token operator">=</span> <span class="token operator">-</span><span class="token number">1</span><span class="token punctuation">,</span>
+    Equal <span class="token operator">=</span> <span class="token number">0</span><span class="token punctuation">,</span>
+    Greater <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">pub</span> <span class="token keyword">trait</span> PartialOrd<span class="token operator">&lt;</span>Rhs<span class="token punctuation">:</span> ?Sized <span class="token operator">=</span> Self<span class="token operator">></span><span class="token punctuation">:</span> PartialEq<span class="token operator">&lt;</span>Rhs<span class="token operator">></span> <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span><span class="token punctuation">;</span>
+    <span class="token keyword">fn</span> <span class="token function">lt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token function">matches!</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">partial_cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">Some</span><span class="token punctuation">(</span>Less<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">fn</span> <span class="token function">le</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token function">matches!</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">partial_cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">Some</span><span class="token punctuation">(</span>Less <span class="token operator">|</span> Equal<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">fn</span> <span class="token function">gt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token function">matches!</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">partial_cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">Some</span><span class="token punctuation">(</span>Greater<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+    <span class="token keyword">fn</span> <span class="token function">ge</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Rhs<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token function">matches!</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">partial_cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">,</span> <span class="token function">Some</span><span class="token punctuation">(</span>Greater <span class="token operator">|</span> Equal<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>基本信息：</p>
+<ol start="0">
+<li>PartialOrd继承自PartialEq，这很好理解，无法比较大小的类型也一定不能进行相等性比较；</li>
+<li>提供<code>partial_cmp()</code>方法用于主类型和可以是其他类型的参数比较，返回的<code>Option&lt;Ordering&gt;</code>，表示两者关系可以是无法比较的（None），那么这里我们就可以联想到Ord<br>trait返回的肯定是<code>Ordering</code>（因为具有全序的类型不会存在无法比较的情况）；</li>
+<li>另外四个方法分别实现了对应的操作符:<code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>，即实现了PartialOrd的类型可以使用这些操作符进行比较；除此之外，由于继承了PartialEq，所以还允许使用<code>==</code>,<code>!=</code>；</li>
+</ol>
+<p><strong>请再次记住，不管是PartialOrd还是Ord，都包含相等关系。</strong></p>
+<h4 id="2-Ord-trait"><a href="#2-Ord-trait" class="headerlink" title="2. Ord trait"></a>2. Ord trait</h4><pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">pub</span> <span class="token keyword">trait</span> Ord<span class="token punctuation">:</span> Eq <span class="token operator">+</span> PartialOrd<span class="token operator">&lt;</span>Self<span class="token operator">></span> <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// 方法1</span>
+    <span class="token keyword">fn</span> <span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> Ordering<span class="token punctuation">;</span>
+
+    <span class="token comment" spellcheck="true">// 方法2</span>
+    <span class="token keyword">fn</span> <span class="token function">max</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> Self
+        <span class="token keyword">where</span>
+            Self<span class="token punctuation">:</span> Sized<span class="token punctuation">,</span>
+            Self<span class="token punctuation">:</span> ~ <span class="token keyword">const</span> Destruct<span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+        <span class="token comment" spellcheck="true">// HACK(fee1-dead): go back to using `self.max_by(other, Ord::cmp)`</span>
+        <span class="token comment" spellcheck="true">// when trait methods are allowed to be used when a const closure is</span>
+        <span class="token comment" spellcheck="true">// expected.</span>
+        <span class="token keyword">match</span> <span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>other<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Less <span class="token operator">|</span> Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Equal <span class="token operator">=</span><span class="token operator">></span> other<span class="token punctuation">,</span>
+            Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Greater <span class="token operator">=</span><span class="token operator">></span> <span class="token keyword">self</span><span class="token punctuation">,</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment" spellcheck="true">// 方法3</span>
+    <span class="token keyword">fn</span> <span class="token function">min</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> Self
+        <span class="token keyword">where</span>
+            Self<span class="token punctuation">:</span> Sized<span class="token punctuation">,</span>
+            Self<span class="token punctuation">:</span> ~ <span class="token keyword">const</span> Destruct<span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+        <span class="token comment" spellcheck="true">// HACK(fee1-dead): go back to using `self.min_by(other, Ord::cmp)`</span>
+        <span class="token comment" spellcheck="true">// when trait methods are allowed to be used when a const closure is</span>
+        <span class="token comment" spellcheck="true">// expected.</span>
+        <span class="token keyword">match</span> <span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>other<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+            Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Less <span class="token operator">|</span> Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Equal <span class="token operator">=</span><span class="token operator">></span> <span class="token keyword">self</span><span class="token punctuation">,</span>
+            Ordering<span class="token punctuation">:</span><span class="token punctuation">:</span>Greater <span class="token operator">=</span><span class="token operator">></span> other<span class="token punctuation">,</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token comment" spellcheck="true">// 方法4</span>
+    <span class="token keyword">fn</span> <span class="token function">clamp</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">,</span> min<span class="token punctuation">:</span> Self<span class="token punctuation">,</span> max<span class="token punctuation">:</span> Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> Self
+        <span class="token keyword">where</span>
+            Self<span class="token punctuation">:</span> Sized<span class="token punctuation">,</span>
+            Self<span class="token punctuation">:</span> ~ <span class="token keyword">const</span> Destruct<span class="token punctuation">,</span>
+            Self<span class="token punctuation">:</span> ~ <span class="token keyword">const</span> PartialOrd<span class="token punctuation">,</span>
+    <span class="token punctuation">{</span>
+        <span class="token function">assert!</span><span class="token punctuation">(</span>min <span class="token operator">&lt;=</span> max<span class="token punctuation">)</span><span class="token punctuation">;</span>
+        <span class="token keyword">if</span> <span class="token keyword">self</span> <span class="token operator">&lt;</span> min <span class="token punctuation">{</span>
+            min
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token keyword">self</span> <span class="token operator">></span> max <span class="token punctuation">{</span>
+            max
+        <span class="token punctuation">}</span> <span class="token keyword">else</span> <span class="token punctuation">{</span>
+            <span class="token keyword">self</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>基本信息：</p>
+<ol start="0">
+<li><code>cmp</code>方法用于比较self与参数<code>other</code>的二元关系，返回<code>Ordering</code>类型（区别于PartialOrd.partial_cmp()返回的<code>Option&lt;Ordering&gt;</code>）；</li>
+<li>Ord继承自Eq+PartialOrd，这也很好理解，具有全序关系的类型自然具有偏序关系；</li>
+<li>提供<code>min/max()</code>方法以返回self与参数<code>other</code>之间的较小值/较大值；</li>
+<li>额外提供<code>clamp()</code>方法返回输入的参数区间内的值；</li>
+<li>显然，由于继承了PartialOrd，所以实现了Ord的类型可以使用操作符<code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code>；</li>
+</ol>
+<blockquote>
+<p>对<code>Self: ~ const Destruct</code>的解释：位于where后即是类型约束，这里约束了<code>Self</code>类型必须是实现了<code>Destruct</code>trait的一个指向常量的裸指针。</p>
+</blockquote>
+<blockquote>
+<p>全序和偏序的概念（来自离散数学）</p>
+<ul>
+<li>全序：即全序关系，自然也是一种二元关系。全序是指，集合中的任两个元素之间都可以比较的关系。比如实数中的任两个数都可以比较大小，那么“大小”就是实数集的一个全序关系。</li>
+<li>偏序：集合中只有部分元素之间可以比较的关系。比如复数集中并不是所有的数都可以比较大小，那么“大小”就是复数集的一个偏序关系。</li>
+<li>显然，全序关系必是偏序关系。反之不成立。</li>
+</ul>
+</blockquote>
+<h3 id="6-4-可派生"><a href="#6-4-可派生" class="headerlink" title="6.4 可派生"></a>6.4 可派生</h3><h4 id="1-PartialOrd-derive"><a href="#1-PartialOrd-derive" class="headerlink" title="1. PartialOrd derive"></a>1. PartialOrd derive</h4><p>PartialOrd和Ord也是可以使用<code>derive</code>宏进行自动实现的，代码如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token attribute attr-name">#[derive(PartialOrd, PartialEq)]</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token attribute attr-name">#[derive(PartialOrd, PartialEq)]</span>
+<span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span> Paperback<span class="token punctuation">,</span> Hardback<span class="token punctuation">,</span> Ebook <span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里有几点需要注意：</p>
+<ol start="0">
+<li>由于继承关系，所以必须同时派生PartialEq；</li>
+<li>与PartialEq相比，不支持为<code>union</code>类型派生；</li>
+<li>对struct进行派生时，大小顺序依据的是成员字段的字典序（字母表中的顺序，数字与字母比较则根据ASCII表编码，数字编码&lt;字母编码；若比较多字节字符如中文，则转Unicode编码后再比较;<br>实际上ASCII表中的字符编码与对应Unicode编码一致）；</li>
+<li>对enum进行派生时，大小顺序依据的是枚举类型的值大小，默认情况下，第一个枚举类型的值是1，向下递增1，所以第一个枚举最小；</li>
+</ol>
+<p>下面使用代码对第2，3点举例说明：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token attribute attr-name">#[derive(PartialOrd, PartialEq)]</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"a"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span> <span class="token operator">&lt;</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"b"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"b"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span> <span class="token operator">&lt;</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"c"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment" spellcheck="true">// 字典序中，数字&lt;字母（按ASCII编码排序）</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"1"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span> <span class="token operator">&lt;</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"2"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"2"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span> <span class="token operator">&lt;</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"a"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token comment" spellcheck="true">// 字典序中，如果比较多字节字符，则先转为其Unicode的十六进制形式，然后逐字节比较</span>
+<span class="token comment" spellcheck="true">// 比如 中文 "曜" 和 "耀" 的Unicode编码分别为0x66DC和0x8000，所以前者小于后者</span>
+<span class="token function">assert_eq!</span><span class="token punctuation">(</span><span class="token string">"曜"</span><span class="token punctuation">,</span> <span class="token string">"\u{66dc}"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert_eq!</span><span class="token punctuation">(</span><span class="token string">"耀"</span><span class="token punctuation">,</span> <span class="token string">"\u{8000}"</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"曜"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span> <span class="token operator">&lt;</span> Book <span class="token punctuation">{</span> name<span class="token punctuation">:</span> <span class="token string">"耀"</span><span class="token punctuation">.</span><span class="token function">to_string</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token attribute attr-name">#[derive(PartialOrd, PartialEq)]</span>
+<span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span>
+    Paperback<span class="token punctuation">,</span>
+    <span class="token comment" spellcheck="true">// 1</span>
+    Hardback<span class="token punctuation">,</span>
+    <span class="token comment" spellcheck="true">// 2</span>
+    Ebook<span class="token punctuation">,</span>     <span class="token comment" spellcheck="true">// 3</span>
+<span class="token punctuation">}</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Paperback <span class="token operator">&lt;</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Hardback<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Hardback <span class="token operator">&lt;</span> BookFormat<span class="token punctuation">:</span><span class="token punctuation">:</span>Ebook<span class="token punctuation">)</span><span class="token punctuation">;</span>
+
+<span class="token attribute attr-name">#[derive(PartialOrd, PartialEq)]</span>
+<span class="token keyword">enum</span> BookFormat2 <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// 手动指定枚举的值，则可以改变它们的大小顺序</span>
+    Paperback <span class="token operator">=</span> <span class="token number">3</span><span class="token punctuation">,</span>
+    Hardback <span class="token operator">=</span> <span class="token number">2</span><span class="token punctuation">,</span>
+    Ebook <span class="token operator">=</span> <span class="token number">1</span><span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>BookFormat2<span class="token punctuation">:</span><span class="token punctuation">:</span>Paperback <span class="token operator">></span> BookFormat2<span class="token punctuation">:</span><span class="token punctuation">:</span>Hardback<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span class="token function">assert!</span><span class="token punctuation">(</span>BookFormat2<span class="token punctuation">:</span><span class="token punctuation">:</span>Hardback <span class="token operator">></span> BookFormat2<span class="token punctuation">:</span><span class="token punctuation">:</span>Ebook<span class="token punctuation">)</span><span class="token punctuation">;</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>对于字典序比较规则，还有一些特殊情况，如下：</p>
+<ul>
+<li>如果元素A是元素B的前缀，则元素A&lt;元素B；</li>
+<li>空字符序列&lt;非空字序列；</li>
+</ul>
+<h4 id="2-Ord-derive"><a href="#2-Ord-derive" class="headerlink" title="2. Ord derive"></a>2. Ord derive</h4><pre class="line-numbers language-rust"><code class="language-rust"> <span class="token attribute attr-name">#[derive(Ord, Eq, PartialOrd, PartialEq)]</span>
+<span class="token keyword">struct</span> Book <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token attribute attr-name">#[derive(Ord, Eq, PartialOrd, PartialEq)]</span>
+<span class="token keyword">enum</span> BookFormat <span class="token punctuation">{</span>
+    Paperback<span class="token punctuation">,</span>
+    Hardback<span class="token punctuation">,</span>
+    Ebook<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里只需注意一点，那就是由于继承关系，Ord需要和Eq, PartialOrd, PartialEq同时派生。另外，根据前面所提到的，PartialOrd和Ord都支持<code>&gt;=</code>, <code>&lt;=</code>，这个要记得；</p>
+<h3 id="6-5-手动实现PartialOrd和Ord"><a href="#6-5-手动实现PartialOrd和Ord" class="headerlink" title="6.5 手动实现PartialOrd和Ord"></a>6.5 手动实现PartialOrd和Ord</h3><h4 id="1-PartialOrd-Impl"><a href="#1-PartialOrd-Impl" class="headerlink" title="1. PartialOrd Impl"></a>1. PartialOrd Impl</h4><pre class="line-numbers language-rust"><code class="language-rust"><span class="token comment" spellcheck="true">// 注意这里测试对象是Book3，不要为成员字段format即BookFormat3派生任何trait，模拟实际项目中无法修改成员字段特性的情况</span>
+<span class="token keyword">enum</span> BookFormat3 <span class="token punctuation">{</span>
+    Paperback<span class="token punctuation">,</span>
+    Hardback<span class="token punctuation">,</span>
+    Ebook<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> Book3 <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+    format<span class="token punctuation">:</span> BookFormat3<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 先得实现 PartialEq</span>
+<span class="token keyword">impl</span> PartialEq<span class="token operator">&lt;</span>Self<span class="token operator">></span> <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// tips：这里可以将&lt;Self>省略</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name <span class="token operator">==</span> other<span class="token punctuation">.</span>name
+        <span class="token comment" spellcheck="true">// 这里假设format字段不要求比较</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 才能实现 PartialOrd</span>
+<span class="token keyword">impl</span> PartialOrd <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Self<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+        <span class="token comment" spellcheck="true">// 直接调用name(String)的比较方法，如果成员字段也没有实现PartialOrd，那就得先为成员实现，这类情况很少</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name<span class="token punctuation">.</span><span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>other<span class="token punctuation">.</span>name<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="2-Ord-Impl"><a href="#2-Ord-Impl" class="headerlink" title="2. Ord Impl"></a>2. Ord Impl</h4><pre class="line-numbers language-rust"><code class="language-rust"><span class="token comment" spellcheck="true">// 测试对象：Book3</span>
+<span class="token comment" spellcheck="true">// - 这里同样没有使用任何derive，全手动实现，由于继承关系，需要实现四个trait</span>
+<span class="token comment" spellcheck="true">// - 注意：若存在任一成员字段(这里指   format字段)未实现PartialEq/Eq/PartialOrd，都是无法为Book3派生Ord的（派生时不会解析下面的手动impl）</span>
+<span class="token keyword">enum</span> BookFormat3 <span class="token punctuation">{</span>
+    Paperback<span class="token punctuation">,</span>
+    Hardback<span class="token punctuation">,</span>
+    Ebook<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token keyword">struct</span> Book3 <span class="token punctuation">{</span>
+    name<span class="token punctuation">:</span> String<span class="token punctuation">,</span>
+    format<span class="token punctuation">:</span> BookFormat3<span class="token punctuation">,</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 先实现 PartialEq</span>
+<span class="token keyword">impl</span> PartialEq <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">eq</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Book3<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name <span class="token operator">==</span> other<span class="token punctuation">.</span>name
+        <span class="token comment" spellcheck="true">// 这里假设format字段不要求比较</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 再实现 Eq</span>
+<span class="token keyword">impl</span> Eq <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span><span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 再实现 Ord</span>
+<span class="token keyword">impl</span> Ord <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Book3<span class="token punctuation">)</span> <span class="token punctuation">-></span> Ordering <span class="token punctuation">{</span>
+        <span class="token comment" spellcheck="true">// 直接调用name(String)的cmp方法（当需要实现Ord时，成员字段一般都实现了Ord，可直接调用其cmp方法）</span>
+        <span class="token keyword">self</span><span class="token punctuation">.</span>name<span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>other<span class="token punctuation">.</span>name<span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+
+<span class="token comment" spellcheck="true">// -- 最后实现 PartialOrd</span>
+<span class="token keyword">impl</span> PartialOrd <span class="token keyword">for</span> Book3 <span class="token punctuation">{</span>
+    <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>Book3<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+        <span class="token comment" spellcheck="true">// 直接调用上面实现的cmp方法</span>
+        <span class="token function">Some</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span>other<span class="token punctuation">)</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>阅读此代码需要注意几点：</p>
+<ol start="0">
+<li>先读完代码注释；</li>
+<li>请注意是先实现Ord，再实现PartialOrd，理由是既然一开始就想要为类型实现Ord，说明类型是能够得出一个肯定结果的（非None），所以后实现PartialOrd直接调用Ord的<code>cmp()</code>；</li>
+</ol>
+<h3 id="6-6-比较不同的类型"><a href="#6-6-比较不同的类型" class="headerlink" title="6.6 比较不同的类型"></a>6.6 比较不同的类型</h3><p>这一节不贴代码了，留给读者去实现。具体实现手法可参考前面3.5节或4.5节中的内容。</p>
+<h3 id="6-7-Rust基本类型如何实现PartialOrd和Ord"><a href="#6-7-Rust基本类型如何实现PartialOrd和Ord" class="headerlink" title="6.7 Rust基本类型如何实现PartialOrd和Ord"></a>6.7 Rust基本类型如何实现PartialOrd和Ord</h3><h4 id="1-PartialOrd-impl-macro"><a href="#1-PartialOrd-impl-macro" class="headerlink" title="1. PartialOrd impl macro"></a>1. PartialOrd impl macro</h4><p>我们以前面介绍过的同样的方式找到<code>cmp.rs</code>中PartialOrd的实现宏，代码如下：</p>
+<pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">mod</span> impls <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// ... 前面是PartialEq和Eq的宏实现</span>
+
+    <span class="token macro-rules function">macro_rules!</span> partial_ord_impl <span class="token punctuation">{</span>
+        <span class="token punctuation">(</span>$<span class="token punctuation">(</span>$t<span class="token punctuation">:</span>ty<span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token punctuation">(</span>$<span class="token punctuation">(</span>
+            #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            <span class="token keyword">impl</span> <span class="token keyword">const</span> PartialOrd <span class="token keyword">for</span> $t <span class="token punctuation">{</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+                   <span class="token comment" spellcheck="true">// 注意看，此处是根据两个比较结果来得到最终结果，本质上是要求比较的值满足对立性（浮点数NaN不满足，所以返回None）</span>
+                    <span class="token keyword">match</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span> <span class="token operator">&lt;=</span> <span class="token operator">*</span>other<span class="token punctuation">,</span> <span class="token operator">*</span><span class="token keyword">self</span> <span class="token operator">>=</span> <span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                        <span class="token punctuation">(</span><span class="token keyword">false</span><span class="token punctuation">,</span> <span class="token keyword">false</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> None<span class="token punctuation">,</span>
+                        <span class="token punctuation">(</span><span class="token keyword">false</span><span class="token punctuation">,</span> <span class="token keyword">true</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token function">Some</span><span class="token punctuation">(</span>Greater<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        <span class="token punctuation">(</span><span class="token keyword">true</span><span class="token punctuation">,</span> <span class="token keyword">false</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token function">Some</span><span class="token punctuation">(</span>Less<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                        <span class="token punctuation">(</span><span class="token keyword">true</span><span class="token punctuation">,</span> <span class="token keyword">true</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token function">Some</span><span class="token punctuation">(</span>Equal<span class="token punctuation">)</span><span class="token punctuation">,</span>
+                    <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">lt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">le</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">&lt;=</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">ge</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">>=</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">gt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">></span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+
+    #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    <span class="token keyword">impl</span> <span class="token keyword">const</span> PartialOrd <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token attribute attr-name">#[inline]</span>
+        <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> _<span class="token punctuation">:</span> <span class="token operator">&amp;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+            <span class="token function">Some</span><span class="token punctuation">(</span>Equal<span class="token punctuation">)</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    <span class="token keyword">impl</span> <span class="token keyword">const</span> PartialOrd <span class="token keyword">for</span> bool <span class="token punctuation">{</span>
+        <span class="token attribute attr-name">#[inline]</span>
+        <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>bool<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+            <span class="token function">Some</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">)</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token macro-rules function">partial_ord_impl!</span> <span class="token punctuation">{</span> f32 f64 <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里要注意一下几点：</p>
+<ol start="0">
+<li>代码中定义的宏<code>partial_ord_impl!</code>是通过两个比较结果来得到最终结果（看注释）；</li>
+<li>这个宏除了应用在了浮点数类型上，还应用在了<code>()</code>和<code>bool</code>类型。浮点数类型不必多说，单元类型是一种单值类型用于排序的情况也比较少，为bool类型实现这个trait的原因是：<br>有时我们需要对包含bool类型成员的struct或enum进行排序，所以需要为其实现PartialOrd（注意其实现也是调用<code>self.cmp()</code>）；</li>
+</ol>
+<blockquote>
+<p>这里的<code>impl const</code>中的const关键字意味着标记这个trait实现是编译时常量（编译时优化），以保证运行时不会有额外开销。这里是因为<code>fn partial_cmp()</code>的实现没有修改任何数据才可以加<code>const</code>，当然还有其他要求例如不能使用动态分配的内存（例如 Box 或 Vec）、不能调用非 const 函数等；</p>
+</blockquote>
+<h4 id="2-Ord-impl-macro"><a href="#2-Ord-impl-macro" class="headerlink" title="2. Ord impl macro"></a>2. Ord impl macro</h4><pre class="line-numbers language-rust"><code class="language-rust"><span class="token keyword">mod</span> impls <span class="token punctuation">{</span>
+    <span class="token comment" spellcheck="true">// ... 前面是PartialEq/Eq/PartialOrd的宏实现</span>
+
+    <span class="token macro-rules function">macro_rules!</span> ord_impl <span class="token punctuation">{</span>
+        <span class="token punctuation">(</span>$<span class="token punctuation">(</span>$t<span class="token punctuation">:</span>ty<span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span> <span class="token operator">=</span><span class="token operator">></span> <span class="token punctuation">(</span>$<span class="token punctuation">(</span>
+            #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            <span class="token keyword">impl</span> <span class="token keyword">const</span> PartialOrd <span class="token keyword">for</span> $t <span class="token punctuation">{</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">partial_cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> Option<span class="token operator">&lt;</span>Ordering<span class="token operator">></span> <span class="token punctuation">{</span>
+                    <span class="token function">Some</span><span class="token punctuation">(</span><span class="token keyword">self</span><span class="token punctuation">.</span><span class="token function">cmp</span><span class="token punctuation">(</span>other<span class="token punctuation">)</span><span class="token punctuation">)</span>
+                <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">lt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">&lt;</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">le</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">&lt;=</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">ge</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">>=</span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">gt</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> bool <span class="token punctuation">{</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span><span class="token punctuation">)</span> <span class="token operator">></span> <span class="token punctuation">(</span><span class="token operator">*</span>other<span class="token punctuation">)</span> <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+
+            #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+            <span class="token keyword">impl</span> <span class="token keyword">const</span> Ord <span class="token keyword">for</span> $t <span class="token punctuation">{</span>
+                <span class="token attribute attr-name">#[inline]</span>
+                <span class="token keyword">fn</span> <span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>$t<span class="token punctuation">)</span> <span class="token punctuation">-></span> Ordering <span class="token punctuation">{</span>
+                    <span class="token comment" spellcheck="true">// The order here is important to generate more optimal assembly.</span>
+                    <span class="token comment" spellcheck="true">// See &lt;https://github.com/rust-lang/rust/issues/63758> for more info.</span>
+                    <span class="token keyword">if</span> <span class="token operator">*</span><span class="token keyword">self</span> <span class="token operator">&lt;</span> <span class="token operator">*</span>other <span class="token punctuation">{</span> Less <span class="token punctuation">}</span>
+                    <span class="token keyword">else</span> <span class="token keyword">if</span> <span class="token operator">*</span><span class="token keyword">self</span> <span class="token operator">==</span> <span class="token operator">*</span>other <span class="token punctuation">{</span> Equal <span class="token punctuation">}</span>
+                    <span class="token keyword">else</span> <span class="token punctuation">{</span> Greater <span class="token punctuation">}</span>
+                <span class="token punctuation">}</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">)</span><span class="token operator">*</span><span class="token punctuation">)</span>
+    <span class="token punctuation">}</span>
+
+    #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    <span class="token keyword">impl</span> <span class="token keyword">const</span> Ord <span class="token keyword">for</span> <span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">{</span>
+        <span class="token attribute attr-name">#[inline]</span>
+        <span class="token keyword">fn</span> <span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> _other<span class="token punctuation">:</span> <span class="token operator">&amp;</span><span class="token punctuation">(</span><span class="token punctuation">)</span><span class="token punctuation">)</span> <span class="token punctuation">-></span> Ordering <span class="token punctuation">{</span>
+            Equal
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    #<span class="token punctuation">[</span><span class="token function">stable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"rust1"</span><span class="token punctuation">,</span> since <span class="token operator">=</span> <span class="token string">"1.0.0"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    #<span class="token punctuation">[</span><span class="token function">rustc_const_unstable</span><span class="token punctuation">(</span>feature <span class="token operator">=</span> <span class="token string">"const_cmp"</span><span class="token punctuation">,</span> issue <span class="token operator">=</span> <span class="token string">"92391"</span><span class="token punctuation">)</span><span class="token punctuation">]</span>
+    <span class="token keyword">impl</span> <span class="token keyword">const</span> Ord <span class="token keyword">for</span> bool <span class="token punctuation">{</span>
+        <span class="token attribute attr-name">#[inline]</span>
+        <span class="token keyword">fn</span> <span class="token function">cmp</span><span class="token punctuation">(</span><span class="token operator">&amp;</span><span class="token keyword">self</span><span class="token punctuation">,</span> other<span class="token punctuation">:</span> <span class="token operator">&amp;</span>bool<span class="token punctuation">)</span> <span class="token punctuation">-></span> Ordering <span class="token punctuation">{</span>
+            <span class="token comment" spellcheck="true">// Casting to i8's and converting the difference to an Ordering generates</span>
+            <span class="token comment" spellcheck="true">// more optimal assembly.</span>
+            <span class="token comment" spellcheck="true">// See &lt;https://github.com/rust-lang/rust/issues/66780> for more info.</span>
+            <span class="token keyword">match</span> <span class="token punctuation">(</span><span class="token operator">*</span><span class="token keyword">self</span> <span class="token keyword">as</span> i8<span class="token punctuation">)</span> <span class="token operator">-</span> <span class="token punctuation">(</span><span class="token operator">*</span>other <span class="token keyword">as</span> i8<span class="token punctuation">)</span> <span class="token punctuation">{</span>
+                <span class="token operator">-</span><span class="token number">1</span> <span class="token operator">=</span><span class="token operator">></span> Less<span class="token punctuation">,</span>
+                <span class="token number">0</span> <span class="token operator">=</span><span class="token operator">></span> Equal<span class="token punctuation">,</span>
+                <span class="token number">1</span> <span class="token operator">=</span><span class="token operator">></span> Greater<span class="token punctuation">,</span>
+                <span class="token comment" spellcheck="true">// SAFETY: bool as i8 returns 0 or 1, so the difference can't be anything else</span>
+                _ <span class="token operator">=</span><span class="token operator">></span> <span class="token keyword">unsafe</span> <span class="token punctuation">{</span> <span class="token function">unreachable_unchecked</span><span class="token punctuation">(</span><span class="token punctuation">)</span> <span class="token punctuation">}</span><span class="token punctuation">,</span>
+            <span class="token punctuation">}</span>
+        <span class="token punctuation">}</span>
+    <span class="token punctuation">}</span>
+
+    <span class="token macro-rules function">ord_impl!</span> <span class="token punctuation">{</span> char usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 <span class="token punctuation">}</span>
+<span class="token punctuation">}</span>
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>这里需要了解一下几点：</p>
+<ol start="0">
+<li>实现Ord的时候需要同时实现PartialOrd，不要求实现的顺序。PartialOrd的<code>partial_cmp()</code>内部调用的是Ord的<code>cmp()</code>，理由前面讲过；</li>
+<li>同样为<code>()</code>和bool类型实现了Ord；</li>
+<li>为大部分基本类型<code>char usize u8 u16 ...</code>(除了f32、f64) 实现了Ord；</li>
+</ol>
+<h3 id="6-8-为其他类型实现四大compare-trait"><a href="#6-8-为其他类型实现四大compare-trait" class="headerlink" title="6.8 为其他类型实现四大compare-trait"></a>6.8 为其他类型实现四大compare-trait</h3><p>其他类型指的是<code>!</code>、<code>不可变借用类型</code>、<code>可变借用类型</code>，具体实现代码就在源码中刚刚看的宏<code>ord_impl!</code>下方，此处就不再赘述。</p>
+<br>
+
+
+</p></div><div class="share"><span>分享到</span>&nbsp;<span class="soc"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></span><span class="soc"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></span><span class="soc"><a class="fa fa-twitter" href="http://twitter.com/home?status=https://github.com/chaseSpace/2023/03/03/about-eq-ord-trait/%20十月的东山岛%20【Rust】一文讲透Rust中的PartialEq和Eq" target="_blank" rel="noopener"></a></span></div><div class="pagination"><p class="clearfix"><span class="pre pagbuttons"><a role="navigation" href="/2023/03/05/build-site-with-vercel/" title="【杂项】Vercel+Hexo搭建免费静态站点">上一篇: 【杂项】Vercel+Hexo搭建免费静态站点</a></span><br><span class="next pagbuttons"><a role="navigation" href="/2022/12/05/rust-cross-compile-on-mac/" title="【Rust】在mac上交叉编译linux和windows程序（包含Docker实现）">下一篇: 【Rust】在mac上交叉编译linux和windows程序（包含Docker实现）</a></span></p></div><a id="comments"></a><div id="disqus_thread"></div><script>var disqus_shortname = 'chasespace';
+var disqus_identifier = '2023/03/03/about-eq-ord-trait/';
+var disqus_title = '【Rust】一文讲透Rust中的PartialEq和Eq';
+var disqus_url = 'https://github.com/chaseSpace/2023/03/03/about-eq-ord-trait/';
+(function () {
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+})();</script><script id="dsq-count-scr" src="//#{theme.disqus}.disqus.com/count.js" async></script></div></div></div><div class="visible-xs site-bottom-footer"><footer><p>&copy;&nbsp;2023&nbsp;<a target="_blank" href="https://github.com/chaseSpace" rel="noopener noreferrer">Leigg</a></p><p>Theme&nbsp;<a target="_blank" href="https://github.com/SumiMakito/hexo-theme-typography" rel="noopener noreferrer">Typography</a>&nbsp;by&nbsp;<a target="_blank" href="https://www.keep.moe" rel="noopener noreferrer">Makito</a></p><p>Proudly published with&nbsp;<a target="_blank" href="https://hexo.io" rel="noopener noreferrer">Hexo</a></p></footer></div></div></div></div><script src="/js/jquery-3.1.0.min.js"></script><script src="/js/bootstrap.min.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script><script src="/js/google-analytics.js"></script><script src="/js/typography.js"></script></body></html>

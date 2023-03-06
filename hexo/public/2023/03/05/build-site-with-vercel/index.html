@@ -1,0 +1,103 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="X-UA-Compatible" content="IE=edge"><meta name="author" content="Leigg"><title>【杂项】Vercel+Hexo搭建免费静态站点 · 十月的东山岛</title><meta name="description" content="介绍了使用Vercel CLI搭配Hexo框架来免费搭建一个个人静态网站，另外需要购买域名解决Vercel域名在国内的污染问题。"><meta name="og:description" content="介绍了使用Vercel CLI搭配Hexo框架来免费搭建一个个人静态网站，另外需要购买域名解决Vercel域名在国内的污染问题。"><meta name="twitter:site" content="十月的东山岛"><meta name="twitter:title" content="【杂项】Vercel+Hexo搭建免费静态站点"><meta name="twitter:card" content="summary"><meta name="keywords" content=""><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport"><meta content="yes" name="apple-mobile-web-app-capable"><meta content="black" name="apple-mobile-web-app-status-bar-style"><meta content="telephone=no" name="format-detection"><meta name="renderer" content="webkit"><link rel="short icon" href="images/favicon.png" type="image/x-icon"><link rel="stylesheet" href="/css/bootstrap.min.css"><link rel="stylesheet" href="/css/font-awesome.min.css"><link rel="stylesheet" href="/css/style.css"><link rel="alternate" type="application/atom+xml" title="ATOM 1.0" href="/atom.xml"><meta name="generator" content="Hexo 4.2.1"><link rel="stylesheet" href="/css/prism.css" type="text/css">
+<link rel="stylesheet" href="/css/prism-line-numbers.css" type="text/css"></head><body><div class="container" id="stage"><div class="row"><div class="col-sm-3 col-xs-12 side-container invisible" id="side-bar"><div class="vertical-text site-title"><h3 class="site-title-small" tabindex="-1"><a class="a-title" href="/">观海</a></h3><h1 class="site-title-large" tabindex="-1"><a class="a-title" href="/">十月的东山岛</a></h1><!--h6(onclick="triggerSiteNav()") Trigger--></div><br class="visible-lg visible-md visible-sm"><div class="site-title-links" id="site-nav"><ul><li><a href="/">首页</a></li><li><a href="/archives">归档</a></li><li><a href="/categories">分类</a></li><li><a href="/tags">标签</a></li><li class="soc"><a href="https://github.com/chaseSpace" target="_blank" rel="noopener noreferrer" aria-label="Github"><i class="fa fa-github">&nbsp;</i></a><a href="https://github.com/chaseSpace/atom.xml" target="_blank" rel="noopener noreferrer" aria-label="RSS"><i class="fa fa-rss">&nbsp;</i></a></li></ul><div class="visible-lg visible-md visible-sm site-nav-footer"><br class="site-nav-footer-br"><footer><p>&copy;&nbsp;2023&nbsp;<a target="_blank" href="https://github.com/chaseSpace" rel="noopener noreferrer">Leigg</a></p><p>Theme&nbsp;<a target="_blank" href="https://github.com/SumiMakito/hexo-theme-typography" rel="noopener noreferrer">Typography</a>&nbsp;by&nbsp;<a target="_blank" href="https://www.keep.moe" rel="noopener noreferrer">Makito</a></p><p>Proudly published with&nbsp;<a target="_blank" href="https://hexo.io" rel="noopener noreferrer">Hexo</a></p></footer></div></div></div><div class="col-sm-9 col-xs-12 main-container invisible" id="main-container"><div class="autopagerize_page_element"><div class="content"><div class="post-page"><div class="post-container"><p class="post-title"><a>【杂项】Vercel+Hexo搭建免费静态站点</a></p><p class="post-meta"><span class="date meta-item">发布于&nbsp;2023-03-05</span><span class="meta-item"><i class="fa fa-comment-o"></i><span>&nbsp;</span><a href="/2023/03/05/build-site-with-vercel/#comments">评论</a></span><span class="meta-item"><i class="fa fa-folder"></i><span>&nbsp;</span><a class="a-tag" href="/categories/技术/" title="技术">技术</a><span>&nbsp;</span></span><span class="meta-item"><i class="fa fa-tag"></i><span>&nbsp;</span><a class="a-tag" href="/tags/杂项/" title="杂项">杂项</a><span>&nbsp;</span></span></p><p class="post-abstract"><h4 id="注明"><a href="#注明" class="headerlink" title="注明"></a>注明</h4><p>本文章使用chatGPT辅助编写。</p>
+<h3 id="1-简介"><a href="#1-简介" class="headerlink" title="1. 简介"></a>1. 简介</h3><p>Vercel 是一个云平台，用于部署和托管 Web 应用程序和网站。它成立于 2015 年，旨在让开发人员快速、高效地部署项目。</p>
+<p>Vercel 提供了许多功能，使其成为开发人员的热门选择，包括：</p>
+<ul>
+<li><p>简单部署：Vercel 支持各种部署选项，包括 Git、GitHub 和其他流行的版本控制系统。这使得开发人员可以轻松部署他们的代码，而无需担心设置服务器或管理基础设施。</p>
+</li>
+<li><p>可扩展性：Vercel 被设计为自动扩展，因此您的应用程序可以处理流量峰值，而无需任何停机时间或性能问题。</p>
+</li>
+<li><p>无服务器函数：Vercel 支持无服务器函数，使开发人员可以按需运行代码，而无需担心管理服务器或基础设施。</p>
+</li>
+<li><p>分析和监控：Vercel 提供了详细的分析和监控工具，因此您可以跟踪应用程序的性能并识别需要解决的任何问题。</p>
+</li>
+</ul>
+<p>总的来说，Vercel 是一个功能强大、用户友好的平台，可以帮助开发人员快速、轻松地部署和托管他们的 Web 应用程序。</p>
+<blockquote>
+<p>博主只是将其用来搭建个人博客网站，属于是大材小用了。</p>
+</blockquote>
+<h3 id="2-使用Vercel-CLI"><a href="#2-使用Vercel-CLI" class="headerlink" title="2. 使用Vercel CLI"></a>2. 使用Vercel CLI</h3><p>Vercel CLI 是 Vercel 公司提供的命令行工具，它可以让开发人员在本地开发和测试他们的应用程序，并使用 Vercel 平台进行部署和托管。</p>
+<h4 id="2-1-创建一个Github私有仓库"><a href="#2-1-创建一个Github私有仓库" class="headerlink" title="2.1 创建一个Github私有仓库"></a>2.1 创建一个Github私有仓库</h4><p>步骤略。</p>
+<blockquote>
+<p>私有是为了避免博客文章被有心人直接Copy源文件进行剽窃。</p>
+</blockquote>
+<h4 id="2-2-使用Hexo框架"><a href="#2-2-使用Hexo框架" class="headerlink" title="2.2 使用Hexo框架"></a>2.2 使用Hexo框架</h4><p>Hexo 是一个基于 Node.js 的静态博客框架，它可以帮助用户快速创建和部署静态博客网站。</p>
+<p>使用 Hexo，用户可以使用 Markdown 语法来编写文章和页面，并使用主题和插件来自定义网站的外观和功能。Hexo 还支持多种部署方式，包括 GitHub Pages、Netlify 和 Vercel 等平台。</p>
+<p>如下命令在本地安装hexo（请首先确保环境已安装NodeJS）：</p>
+<pre class="line-numbers language-shell"><code class="language-shell">cd your_github_repo/
+npm install -g hexo
+hexo -v # check version
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre>
+<h4 id="2-3-使用Vercel-CLI"><a href="#2-3-使用Vercel-CLI" class="headerlink" title="2.3 使用Vercel CLI"></a>2.3 使用Vercel CLI</h4><pre class="line-numbers language-shell"><code class="language-shell"># 安装
+npm install -g vercel
+
+vercel login    # 跳转到浏览器登录，再回到CLI
+vercel init     # 初始化环境，调整上下键选择hexo环境，并填入一些信息（含博客项目名），回车
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<p>然后可以在仓库下看到<code>hexo</code>名称的目录被创建，并且里面创建好了hexo的目录结构。</p>
+<h4 id="2-4-开始部署"><a href="#2-4-开始部署" class="headerlink" title="2.4 开始部署"></a>2.4 开始部署</h4><p>输入<code>vercel</code>命令并回车，根据提示输入你的选择（可参考博主的操作）：</p>
+<pre class="line-numbers language-shell"><code class="language-shell">lei@WilldeMacBook-Pro hexo % vercel
+Vercel CLI 28.16.12
+❗️  Your Project was either deleted, transferred to a new Team, or you don’t have access to it anymore.
+? Set up and deploy “~/Desktop/Rust/LeiggBlogs/hexo”? [Y/n] y
+? Which scope do you want to deploy to? chasespace
+? Link to existing project? [y/N] n
+? What’s your project’s name? leigg
+? In which directory is your code located? ./
+Local settings detected in vercel.json:
+Auto-detected Project Settings (Hexo):
+- Build Command: hexo generate
+- Development Command: hexo server --port $PORT
+- Install Command: `yarn install`, `pnpm install`, or `npm install`
+- Output Directory: public
+? Want to modify these settings? [y/N] n
+🔗  Linked to chasespace/leigg (created .vercel)
+🔍  Inspect: https://vercel.com/chasespace/leigg/DgH3fzUU5eS7ATofMSJ8zC5H8oKp [2s]
+✅  Production: https://leigg.vercel.app [16s]
+📝  Deployed to production. Run `vercel --prod` to overwrite later (https://vercel.link/2F).
+💡  To change the domain or build command, go to https://vercel.com/chasespace/leigg/settings
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<blockquote>
+<p>如果报错<code>yarn...</code>，就删除hexo/下的yarn.lock并重新初始化yarn环境（Vercel需要）:<br><code>npm install -g yarn</code><br><code>yarn install</code></p>
+</blockquote>
+<p>根据最后的提示，部署成功后会产生一次部署记录（Inspect项），一个访问域名（Production项），这些信息可以在Vercel官网的仪表盘中的项目详情页中看到。<br>通过访问域名可以看到刚才部署的博客页面的，需要注意的是，Vercel域名由于在国内存在dns污染导致无法访问，需要单独购买域名并指向Vercel服务器IP，当前只能挂代理访问。</p>
+<p>在项目详情页中点击<code>View Build Logs</code>查看构建记录，点开<code>Deployment status</code>-&gt;<code>Building</code>查看部署日志。并且在当前页面的顶部存在一些按钮：</p>
+<ul>
+<li>logs：Vercel提供的这个网站项目的runtime日志，主要包括网站的请求日志；</li>
+<li>source：查看<strong>本次部署</strong>的网站源文件(Source)和编译后的网站静态文件（Output）;</li>
+</ul>
+<h4 id="2-5-更新博客"><a href="#2-5-更新博客" class="headerlink" title="2.5 更新博客"></a>2.5 更新博客</h4><p>比如修改文章、添加/删除文章或修改配置等，都需要再次发布，这里也很简单，都不需要使用hexo命令，而是直接执行<code>vercel --prod</code>命令即可（偶尔存在失败的情况，多试几次，据博主测试不需要代理）。</p>
+<blockquote>
+<p>需要注意的是得进入 <code>hexo/</code>目录 执行命令，因为要读取 <code>.vercel</code> 配置。</p>
+</blockquote>
+<h4 id="2-6-解决国内无法访问的问题"><a href="#2-6-解决国内无法访问的问题" class="headerlink" title="2.6 解决国内无法访问的问题"></a>2.6 解决国内无法访问的问题</h4><p>前面说过，Vercel域名在国内由于DNS污染问题导致无法访问，需要绑定其他域名。博主使用的是腾讯云服务（购买需实名），购买后在DNS解析页面配置两条记录：</p>
+<p><img src="/../images/dnspod_conf.jpg"></p>
+<blockquote>
+<p>CNAME记录的地址是 cname-china.vercel-dns.com</p>
+</blockquote>
+<p>然后在Vercel的项目的<code>Settings</code>-&gt;<code>Domains</code>中添加新域名。关于本节中不清楚的内容可以参考这篇 <a href="https://zhuanlan.zhihu.com/p/595448121" target="_blank" rel="noopener">知乎文章</a> 中的域名绑定部分。</p>
+<h4 id="2-7-修复markdown代码中大括号渲染异常问题"><a href="#2-7-修复markdown代码中大括号渲染异常问题" class="headerlink" title="2.7 修复markdown代码中大括号渲染异常问题"></a>2.7 修复markdown代码中大括号渲染异常问题</h4><p>博主使用的Hexo是v5.4，页面渲染时，将<code>{</code>和<code>}</code>分别渲染为<code>&amp;#123;</code> 和 <code>&amp;125;</code>，这可以通过降级Hexo来解决：</p>
+<pre class="line-numbers language-shell"><code class="language-shell">npm uninstall hexo  # 卸载
+npm install hexo@4.1.0  # 安装旧版
+
+hexo -v # 验证版本
+
+# 删除 hexo/yarn.lock，重新执行yarn install 以安装适应新版的各种yarn插件
+
+vercel --prod # 再次发布博客
+<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre>
+<h4 id="2-7-其他"><a href="#2-7-其他" class="headerlink" title="2.7 其他"></a>2.7 其他</h4><p>注意几点：</p>
+<ul>
+<li>上传文章后，同时将文件上传至Github仓库托管（以免本机故障导致数据丢失）。</li>
+</ul>
+</p></div><div class="share"><span>分享到</span>&nbsp;<span class="soc"><a class="fa fa-bookmark" href="javascript:(function(){EN_CLIP_HOST='http://www.evernote.com';try{var%20x=document.createElement('SCRIPT');x.type='text/javascript';x.src=EN_CLIP_HOST+'/public/bookmarkClipper.js?'+(new%20Date().getTime()/100000);document.getElementsByTagName('head')[0].appendChild(x);}catch(e){location.href=EN_CLIP_HOST+'/clip.action?url='+encodeURIComponent(location.href)+'&amp;title='+encodeURIComponent(document.title);}})();" ref="nofollow" target="_blank"></a></span><span class="soc"><a class="fa fa-weibo" href="javascript:void((function(s,d,e){try{}catch(e){}var f='http://service.weibo.com/share/share.php?',u=d.location.href,p=['url=',e(u),'&amp;title=',e(d.title),'&amp;appkey=2924220432'].join('');function a(){if(!window.open([f,p].join(''),'mb',['toolbar=0,status=0,resizable=1,width=620,height=450,left=',(s.width-620)/2,',top=',(s.height-450)/2].join('')))u.href=[f,p].join('');};if(/Firefox/.test(navigator.userAgent)){setTimeout(a,0)}else{a()}})(screen,document,encodeURIComponent));"></a></span><span class="soc"><a class="fa fa-twitter" href="http://twitter.com/home?status=https://github.com/chaseSpace/2023/03/05/build-site-with-vercel/%20十月的东山岛%20【杂项】Vercel+Hexo搭建免费静态站点" target="_blank" rel="noopener"></a></span></div><div class="pagination"><p class="clearfix"><span class="pre pagbuttons"><a role="navigation" href="/2035/12/31/welcome/" title="你好，欢迎来到L的博客【十月的东山岛🌊】">上一篇: 你好，欢迎来到L的博客【十月的东山岛🌊】</a></span><br><span class="next pagbuttons"><a role="navigation" href="/2023/03/03/about-eq-ord-trait/" title="【Rust】一文讲透Rust中的PartialEq和Eq">下一篇: 【Rust】一文讲透Rust中的PartialEq和Eq</a></span></p></div><a id="comments"></a><div id="disqus_thread"></div><script>var disqus_shortname = 'chasespace';
+var disqus_identifier = '2023/03/05/build-site-with-vercel/';
+var disqus_title = '【杂项】Vercel+Hexo搭建免费静态站点';
+var disqus_url = 'https://github.com/chaseSpace/2023/03/05/build-site-with-vercel/';
+(function () {
+    var dsq = document.createElement('script');
+    dsq.type = 'text/javascript';
+    dsq.async = true;
+    dsq.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+    (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+})();</script><script id="dsq-count-scr" src="//#{theme.disqus}.disqus.com/count.js" async></script></div></div></div><div class="visible-xs site-bottom-footer"><footer><p>&copy;&nbsp;2023&nbsp;<a target="_blank" href="https://github.com/chaseSpace" rel="noopener noreferrer">Leigg</a></p><p>Theme&nbsp;<a target="_blank" href="https://github.com/SumiMakito/hexo-theme-typography" rel="noopener noreferrer">Typography</a>&nbsp;by&nbsp;<a target="_blank" href="https://www.keep.moe" rel="noopener noreferrer">Makito</a></p><p>Proudly published with&nbsp;<a target="_blank" href="https://hexo.io" rel="noopener noreferrer">Hexo</a></p></footer></div></div></div></div><script src="/js/jquery-3.1.0.min.js"></script><script src="/js/bootstrap.min.js"></script><script src="/js/jquery-migrate-1.2.1.min.js"></script><script src="/js/jquery.appear.js"></script><script src="/js/google-analytics.js"></script><script src="/js/typography.js"></script></body></html>
